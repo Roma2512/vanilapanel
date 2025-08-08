@@ -1,0 +1,479 @@
+{% extends "index.html" %}
+{% block title %}Файловый проводник{% endblock %}
+{% block head %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="/static/scripts/window.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            function getCookie(cname) {
+                let name = cname + "=";
+                let decodedCookie = decodeURIComponent(document.cookie);
+                let ca = decodedCookie.split(';');
+                for(let i = 0; i <ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') {
+                        c = c.substring(1);
+                    }
+                    if (c.indexOf(name) == 0) {
+                        return c.substring(name.length, c.length);
+                    }
+                }
+                return "";
+            }
+            let currentPath = getCookie("filepath");
+            let selectedFile = null;
+            const CHUNK_SIZE = 0.5 * 1024 * 1024; // 64kb chunks
+            // Добавить в начало переменные
+            let uploadStartTime = null;
+            let lastLoaded = 0;
+            let lastTime = 0;
+            let totalFiles = 0;
+            let currentFile = 0;
+            
+            // Обработка подключения
+            socket.on('connect', () => {
+                console.log("Server connect");
+                socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "list", "path": currentPath});
+            });
+            
+            // Обновить обработчик прогресса
+            socket.on('exp-server-upload-progress', (data) => {
+                const now = Date.now();
+                const percent = Math.round((data.currentChunk + 1) / data.totalChunks * 100);
+                const loaded = (data.currentChunk + 1) * CHUNK_SIZE;
+                const fileSize = data.totalChunks * CHUNK_SIZE;
+                
+                // Расчет скорости
+                const timeDiff = (now - lastTime) / 1000; // в секундах
+                const loadedDiff = loaded - lastLoaded;
+                const speed = timeDiff > 0 ? loadedDiff / timeDiff : 0;
+                
+                // Расчет оставшегося времени
+                const remainingBytes = fileSize - loaded;
+                const remainingTime = speed > 0 ? remainingBytes / speed : 0;
+                
+                // Обновление UI
+                document.getElementById('progress-percent').textContent = `${percent}%`;
+                document.getElementById('progress-bar').style.width = `${percent}%`;
+                document.getElementById('progress-speed').textContent = 
+                    `${formatBytes(speed)}/s`;
+                document.getElementById('progress-time').textContent = 
+                    `Осталось: ${formatTime(remainingTime)}`;
+                    
+                // Сохраняем текущие значения для следующего расчета
+                lastLoaded = loaded;
+                lastTime = now;
+                
+                if (percent === 100) {
+                    setTimeout(() => {
+                        document.getElementById('upload-progress').style.opacity = '0';
+                        setTimeout(() => {
+                            document.getElementById('upload-progress').style.display = 'none';
+                        }, 300);
+                    }, 1000);
+                }
+            });
+
+            // Обработчик завершения загрузки
+            socket.on('exp-server-upload', (data) => {
+                if (data.success) {
+                    showPopup(data.message, 'success');
+                } else {
+                    showPopup(data.message, 'error');
+                }
+            });
+
+            socket.on('redirect', (url) => {
+                window.location.href = url;
+            });
+
+            socket.on('exp-server-rmfile', (data) => {
+                if (data["path"] == currentPath || data["path"] == `/${currentPath}`)
+                    document.querySelector('.files-list').querySelector(`[data-filename="${data['filename']}"]`).remove()
+            });
+
+            socket.on('exp-server-refresh', (path) => {
+                if (path == currentPath || path == `/${currentPath}`)
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "list", "path": currentPath});
+            });
+
+            // Обработка данных о файлах и папках
+            socket.on('exp-server-files', (data) => {
+                // Обновляем хлебные крошки
+                const breadcrumbs = document.querySelector('.breadcrumbs');
+                breadcrumbs.innerHTML = '';
+                
+                data.paths.forEach((path, index) => {
+                    const link = document.createElement('a');
+                    link.href = 'javascript:void(0)';
+                    link.onclick = () => {
+                        currentPath = path.path;
+                        document.cookie = `filepath=${currentPath}`;
+                        socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "list", "path": currentPath});
+                    };
+                    link.style.color = '#DDD';
+                    link.style.textDecoration = 'none';
+                    link.style.cursor = 'pointer';
+                    link.textContent = `${path.name}`;
+                    
+                    breadcrumbs.appendChild(link);
+                    
+                    if (index < data.paths.length - 1) {
+                        const separator = document.createElement('span');
+                        separator.textContent = ' / ';
+                        separator.style.color = '#AAA';
+                        breadcrumbs.appendChild(separator);
+                    }
+                });
+                
+                // Обновляем список файлов
+                const filesList = document.querySelector('.files-list');
+                filesList.innerHTML = '';
+                
+                data.files.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.style.display = 'flex';
+                    fileItem.style.alignItems = 'center';
+                    fileItem.style.padding = '8px 0';
+                    fileItem.style.borderRadius = '5px';
+                    fileItem.style.cursor = 'pointer';
+                    fileItem.dataset.filename = file.name;
+                    
+                    fileItem.innerHTML = `
+                        <div style="width: 40px; display: flex; justify-content: center;">
+                            <img src="${file.image}" style="width: 24px; height: 24px;">
+                        </div>
+                        <div style="flex: 3; color: #DDD;">${file.name}</div>
+                        <div style="flex: 1; color: #AAA; text-align: right;">${file.size || '-'}</div>
+                        <div style="flex: 2; color: #AAA; text-align: right;">${file.date || '-'}</div>
+                    `;
+                    
+                    // Двойной клик
+                    fileItem.addEventListener('click', function() {
+                        if (file.isdir) {
+                            currentPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+                            document.cookie = `filepath=${currentPath}`;
+                            socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "list", "path": currentPath});
+                        } else {
+                            window.location.href = `/editor/{{ id }}?path=${currentPath}/${file.name}`;
+                        }
+                    });
+                    
+                    // Контекстное меню для файла
+                    fileItem.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        selectedFile = file.name;
+                        if (file.isdir){
+                            document.getElementById("file-download").style.display = "none";
+                        } else{
+                            document.getElementById("file-download").style.display = "block";
+                        }
+                        const contextMenu = document.getElementById('file-context-menu');
+                        contextMenu.style.display = 'block';
+                        contextMenu.style.left = `${e.clientX}px`;
+                        contextMenu.style.top = `${e.clientY}px`;
+                        setTimeout(() => {
+                            contextMenu.style.opacity = '1';
+                            contextMenu.style.transform = 'scale(1)';
+                        }, 10);
+                    });
+                    
+                    filesList.appendChild(fileItem);
+                });
+            });
+            // Drag and Drop обработчики
+            const dropArea = document.getElementById('drop-area');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                dropArea.classList.add('drag-over');
+            }
+
+            function unhighlight() {
+                dropArea.classList.remove('drag-over');
+            }
+
+            function updateFilesCounter() {
+                document.getElementById('progress-files').textContent = 
+                    `${currentFile}/${totalFiles} файл${totalFiles > 1 ? 'а' : ''}`;
+            }
+
+            // Обработка сброса файлов
+            dropArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            }
+
+            function handleFiles(files) {
+                totalFiles = files.length;
+                currentFile = 0;
+                updateFilesCounter();
+                uploadStartTime = Date.now();
+                lastLoaded = 0;
+                lastTime = uploadStartTime;
+                
+                for (let i = 0; i < files.length; i++) {
+                    currentFile = i + 1;
+                    updateFilesCounter();
+                    uploadFile(files[i]);
+                }
+            }
+
+            function formatBytes(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i]);
+            }
+
+            function formatTime(seconds) {
+                if (seconds < 60) return Math.round(seconds) + ' сек';
+                if (seconds < 3600) return Math.round(seconds / 60) + ' мин';
+                return Math.round(seconds / 3600) + ' ч';
+            }
+
+            // Функция загрузки файла по чанкам
+            function uploadFile(file) {
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                let currentChunk = 0;
+                let fileReader = new FileReader();
+                
+                document.getElementById('upload-progress').style.display = 'block';
+                document.getElementById('progress-filename').textContent = file.name;
+                document.getElementById('progress-percent').textContent = '0%';
+                document.getElementById('progress-bar').style.width = '0%';
+
+                function uploadNextChunk() {
+                    const start = currentChunk * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
+                    
+                    fileReader.onload = function(e) {
+                        const chunkData = e.target.result;
+                        const base64Data = chunkData.split(',')[1];
+                        
+                        socket.emit('exp-client-upload-chunk', {
+                            id: "{{ id }}",
+                            filename: file.name,
+                            path: currentPath,
+                            data: chunkData,
+                            currentChunk: currentChunk,
+                            totalChunks: totalChunks
+                        });
+                    };
+                    
+                    fileReader.readAsDataURL(chunk);
+                }
+
+                // Начинаем загрузку первого чанка
+                uploadNextChunk();
+
+                // Обработчик следующего чанка
+                socket.on('exp-server-upload-next-chunk', (data) => {
+                    if (data.success) {
+                        console.log("Next chunk!", currentChunk);
+                        currentChunk += 1
+                        uploadNextChunk();
+                    }
+                });
+            }
+
+            // Контекстное меню для пустого пространства
+            const explorer = document.querySelector('.explorer');
+            const contextMenu = document.getElementById('file-context-menu');
+            
+            explorer.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                
+                contextMenu.style.display = 'none';
+            });
+            
+            // Скрытие меню при клике в любом месте
+            document.addEventListener('click', function(e) {
+                if (!contextMenu.contains(e.target)) {
+                    contextMenu.style.opacity = '0';
+                    contextMenu.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        contextMenu.style.display = 'none';
+                    }, 150);
+                }
+            });
+
+            // Создание папки
+            document.getElementById('folder-create').addEventListener('click', async function() {
+                const folderName = await showPrompt('Введите имя папки:');
+                if (folderName) {
+                    const pathToCreate = currentPath ? `${currentPath}/${folderName}` : folderName;
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "mkdir", "file": pathToCreate});
+                    hideContextMenu();
+                }
+            });
+            
+            document.getElementById('file-create').addEventListener('click', async function() {
+                const fileName = await showPrompt('Введите имя файла:');
+                if (fileName) {
+                    const pathToCreate = currentPath ? `${currentPath}/${fileName}` : fileName;
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "mkfile", "file": pathToCreate});
+                    hideContextMenu();
+                }
+            });
+            
+            // Действия с файлом
+            document.getElementById('file-rename').addEventListener('click', async function() {
+                const fileName = await showPrompt('Введите новое имя файла:', selectedFile);
+                if (fileName) {
+                    const oldPath = currentPath ? `${currentPath}/${selectedFile}` : selectedFile;
+                    const newPath = currentPath ? `${currentPath}/${fileName}` : fileName;
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "rename", "file": oldPath, "name": newPath});
+                    hideContextMenu();
+                }
+            });
+            
+            document.getElementById('file-download').addEventListener('click', function() {
+                const pathToDownload = currentPath ? `${currentPath}/${selectedFile}` : selectedFile;
+                socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "download", "file": pathToDownload});
+                hideContextMenu();
+            });
+
+            document.getElementById('file-delete').addEventListener('click', async function() {
+                const confirmed = await showConfirm(`Вы уверены, что хотите удалить "${selectedFile}"?`);
+                if (confirmed) {
+                    const pathToDelete = currentPath ? `${currentPath}/${selectedFile}` : selectedFile;
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "delete", "file": pathToDelete});
+                    hideContextMenu();
+                }
+            });
+
+            document.getElementById('file-archive').addEventListener('click', function() {
+                const pathToArchive = currentPath ? `${currentPath}/${selectedFile}` : selectedFile;
+                socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "archive", "file": pathToArchive});
+                hideContextMenu();
+            });
+
+            // Обработка клика на "Загрузить файл"
+            document.getElementById('file-upload').addEventListener('click', function() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.multiple = true;
+                input.onchange = (e) => {
+                    handleFiles(e.target.files);
+                };
+                input.click();
+                hideContextMenu();
+            });
+
+            // Кнопка "Назад"
+            document.getElementById('back-button').addEventListener('click', function() {
+                if (currentPath) {
+                    const pathParts = currentPath.split('/');
+                    pathParts.pop();
+                    currentPath = pathParts.join('/');
+                    document.cookie = `filepath=${currentPath}`;
+                    socket.emit("exp-client-tools", {"id": "{{ id }}", "mode": "list", "path": currentPath});
+                }
+            });
+
+            document.getElementById('progress-close').addEventListener('click', function() {
+                document.getElementById('upload-progress').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('upload-progress').style.display = 'none';
+                }, 300);
+            });
+
+            function hideContextMenu() {
+                const contextMenu = document.getElementById('file-context-menu');
+                contextMenu.style.opacity = '0';
+                contextMenu.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    contextMenu.style.display = 'none';
+                }, 150);
+            }
+        });
+    </script>
+    <link rel="stylesheet" href="/static/styles/explorer.css">
+{% endblock %}
+{% block menu %}
+    <div class="leftmenu">
+        <a href="/terminal/{{ id }}">Терминал</a>
+        <a>Файлы</a>
+    </div>
+{% endblock %}
+{% block body %}
+    <div class="explorer" style="margin-top: 50px; margin-bottom: 30px; position: relative;" id="drop-area">
+        <!-- Progress bar -->
+        <div id="upload-progress" style="display: none; position: relative;">
+            <div class="progress-header">
+                <div class="progress-filename" id="progress-filename"></div>
+                <div class="progress-percent" id="progress-percent">0%</div>
+                <div class="progress-close" id="progress-close">✕</div>
+            </div>
+            
+            <div class="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+            
+            <div class="progress-details">
+                <div class="progress-speed" id="progress-speed">0 KB/s</div>
+                <div class="progress-time" id="progress-time">Осталось: вычисляем...</div>
+                <div class="progress-files" id="progress-files">1/1 файл</div>
+            </div>
+        </div>
+        <div id="file-context-menu" class="contextmenu">
+            <div id="file-rename">Переименовать</div>
+            <div id="file-download">Скачать</div>
+            <div id="file-upload">Загрузить файл</div> 
+            <div id="folder-create">Создать папку</div>
+            <div id="file-create">Создать файл</div>
+            <div id="file-delete">Удалить</div>
+            <div id="file-archive">Архивировать</div>
+        </div>
+
+        <div class="block" style="margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="font-size: 18px; color: #FFF;margin-left: 0">
+                    Проводник
+                </div>
+                <div style="display: flex">
+                    <button id="back-button" class="button">Назад</button>
+                </div>
+            </div>
+
+            <div class="breadcrumbs" style="margin-bottom: 15px; font-size: 13px; color: #AAA;">
+            </div>
+
+            <div style="display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 5px 0; margin-bottom: 5px;">
+                <div style="width: 40px;"></div>
+                <div style="flex: 3; font-weight: bold; color: #DDD;">Имя</div>
+                <div style="flex: 1; font-weight: bold; color: #DDD; text-align: right;">Размер</div>
+                <div style="flex: 2; font-weight: bold; color: #DDD; text-align: right;">Дата</div>
+            </div>
+            <div class="files-list">
+                <!-- Здесь будут отображаться файлы и папки -->
+            </div>
+        </div>
+    </div>
+{% endblock %}

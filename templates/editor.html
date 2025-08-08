@@ -1,0 +1,186 @@
+{% extends "index.html" %}
+{% block title %}{{ file.name }} - Редактор{% endblock %}
+{% block head %}
+    <style>
+        .editor-container {
+            margin-top: 60px;
+            padding: 15px;
+        }
+
+        .file-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #DDD;
+        }
+
+        .file-path {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .code-editor {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgb(40, 40, 40);
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #editor-content {
+            width: 100%;
+            height: 70vh;
+            background: transparent;
+            color: #DDD;
+            border: none;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+            tab-size: 4;
+        }
+
+        .editor-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 10px;
+            background: rgb(45,45,45);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .save-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(50, 150, 50, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        /* Стили для подсветки синтаксиса (можно заменить на полноценный редактор типа CodeMirror) */
+        .jinja-tag {
+            color: #FF9D45;
+        }
+        .jinja-variable {
+            color: #7EE787;
+        }
+        .jinja-comment {
+            color: #6E7681;
+            font-style: italic;
+        }
+    </style>
+{% endblock %}
+{% block menu %}
+    <div class="leftmenu">
+        <a href="/terminal/{{ id }}">Терминал</a>
+        <a>Файлы</a>
+    </div>
+{% endblock %}
+{% block body %}
+    <div class="editor-container">
+        <div class="file-header">
+            <div class="file-info">
+                <div class="file-name">{{ file.name }}</div>
+                <div class="file-path">{{ file.path }}</div>
+            </div>
+            <div class="file-actions">
+                <a href="/explorer/{{ id }}?path={{ file.parent }}" class="button">Назад</a>
+                {% if file.type != "image" and file.type != "none"%}
+                    <button onclick="document.getElementById('editor-form').submit()" class="button">Сохранить (Ctrl+S)</button>
+                {% endif %}
+            </div>
+
+        </div>
+
+        {% if file.type == "text" %}
+            <form id="editor-form" action="" method="post" class="code-editor">
+                <textarea id="editor-content" name="content" placeholder="Редактируйте содержимое файла...">{{ file.data }}</textarea>
+            </form>
+        {% elif file.type == "image" %}
+            <div class="block">
+            <div class="image-container" style="text-align: center;">
+                <img src="/static/temp/{{ file.name }}" alt="{{ file.name }}" style="max-width: 100%; max-height: 70vh;">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <div class="block" style="margin-top: 15px;">
+                    <div class="stat-label">Имя файла</div>
+                    <div class="stat-value">{{ file.name }}</div>
+                </div>
+                <div class="block" style="margin-top: 15px;">
+                    <div class="stat-label">Размер</div>
+                    <div class="stat-value">{{ file.size }}</div>
+                </div>
+                <div class="block" style="margin-top: 15px;">
+                    <div class="stat-label">Дата изменения</div>
+                    <div class="stat-value">{{ file.date }}</div>
+                </div>
+            </div>
+            </div>
+        {% else %}
+            <div class="block" style="text-align: center;width: 400px;margin: auto">
+                <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                <h2>Формат файла не поддерживается</h2>
+                <p>Мы не можем отобразить содержимое этого файла.</p>
+                <a href="/explorer/{{ id }}?path={{ file.parent }}" class="button">Вернуться назад</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <div id="save-notification" class="save-notification">Изменения сохранены!</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const editorForm = document.getElementById('editor-form');
+            const editorContent = document.getElementById('editor-content');
+            const saveNotification = document.getElementById('save-notification');
+
+            if (editorForm && editorContent) {
+                // Сохранение по Ctrl+S
+                editorContent.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        e.preventDefault();
+                        editorForm.submit();
+                    }
+                });
+
+                // Показываем уведомление при успешном сохранении
+                editorForm.addEventListener('submit', function() {
+                    saveNotification.style.opacity = '1';
+                    setTimeout(function() {
+                        saveNotification.style.opacity = '0';
+                    }, 2000);
+                });
+
+                // Автоматическое увеличение высоты textarea
+                function adjustHeight() {
+                    editorContent.style.height = 'auto';
+                    editorContent.style.height = (editorContent.scrollHeight) + 'px';
+                }
+
+                editorContent.addEventListener('input', adjustHeight);
+                adjustHeight();
+            }
+        });
+    </script>
+{% endblock %}

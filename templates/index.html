@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<title>{% block title %}{% endblock %}</title>
+		<link rel="stylesheet" href="/static/style.css">
+        <link rel="icon" href="/static/images/logo64.webp">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+		{% block head %}{% endblock %}
+	</head>
+	<body style="{% block style %}{% endblock %}">
+		{% if not menu %}
+			<div class="menu">
+				<div class="leftmenu">
+					{% block menu %}{% endblock %}
+				</div>
+				<div class="rightmenu">
+				</div>
+			</div>
+		{% endif %}
+		<p style="margin: 50px;"></p>
+		{% block body %}{% endblock %}
+	</body>
+</html>

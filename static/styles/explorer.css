@@ -1,0 +1,352 @@
+.contextmenu {
+    padding: 5px;
+    background: rgba(50, 50, 50, 0.75);
+    backdrop-filter: blur(5px);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: fixed;
+    z-index: 1000;
+    width: 200px;
+    display: none;
+    opacity: 0;
+    transform: scale(0.95);
+    transform-origin: top left;
+    transition: all 0.15s ease-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.contextmenu div {
+    width: -webkit-fill-available;
+    box-sizing: border-box;
+    text-align: left;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease-out;
+    color: #DDD;
+}
+.contextmenu div:hover {
+    background: rgba(255, 128, 0, 0.15);
+    color: #FF8000;
+}
+.file-item {
+    transition: background 0.15s ease-out;
+}
+.file-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.breadcrumbs a {
+    transition: color 0.15s ease-out;
+    position: relative;
+}
+.breadcrumbs a:hover {
+    color: #FF8000;
+}
+.breadcrumbs a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: #FF8000;
+    transition: width 0.15s ease-out;
+}
+.breadcrumbs a:hover::after {
+    width: 100%;
+}
+#drop-area {
+    min-height: 200px;
+    transition: all 0.3s;
+}
+
+.drag-over {
+    background: rgba(255, 128, 0, 0.05) !important;
+    outline: 2px dashed #FF8000 !important;
+    outline-offset: -10px;
+}
+/* Стили для попапов */
+.popup {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 10000;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.popup.success {
+    background: rgba(50, 200, 50, 0.9);
+    border-left: 4px solid #32c832;
+}
+
+.popup.error {
+    background: rgba(200, 50, 50, 0.9);
+    border-left: 4px solid #c83232;
+}
+
+.popup.info {
+    background: rgba(50, 50, 200, 0.9);
+    border-left: 4px solid #3232c8;
+}
+
+/* Стили для confirm попапа */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.confirm-popup {
+    background: #323232;
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    max-width: 90%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.confirm-message {
+    margin-bottom: 20px;
+    color: #EEE;
+}
+
+.confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.confirm-yes {
+    background: #FF8000;
+    color: white;
+}
+
+.confirm-yes:hover {
+    background: rgba(255, 128, 0, 0.8);
+}
+
+.confirm-no {
+    background: rgba(255, 255, 255, 0.1);
+    color: #EEE;
+}
+
+.confirm-no:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+/* Стили для prompt попапа */
+.prompt-popup {
+    background: #323232;
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    max-width: 90%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.prompt-message {
+    margin-bottom: 15px;
+    color: #EEE;
+}
+
+.prompt-input {
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #EEE;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.prompt-input:focus {
+    border-color: #FF8000;
+}
+
+.prompt-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.prompt-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.prompt-ok {
+    background: #FF8000;
+    color: white;
+}
+
+.prompt-ok:hover {
+    background: rgba(255, 128, 0, 0.8);
+}
+
+.prompt-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: #EEE;
+}
+
+.prompt-cancel:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+#upload-progress {
+    display: none;
+    margin-bottom: 15px;
+    background: rgba(30, 30, 30, 0.8);
+    border-radius: 8px;
+    padding: 15px;
+    border: 1px solid rgba(255, 128, 0, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s ease-out;
+}
+    
+    @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+    }
+    
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    }
+    
+.progress-filename {
+    color: #FFF;
+    font-weight: 500;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70%;
+    }
+    
+.progress-percent {
+    color: #FF8000;
+    font-weight: bold;
+    font-size: 14px;
+    background: rgba(255, 128, 0, 0.1);
+    padding: 3px 8px;
+    border-radius: 12px;
+    }
+    
+.progress-bar-container {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    }
+    
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #FF8000, #FFB366);
+    border-radius: 4px;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    }
+    
+#progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    animation: shimmer 2s infinite;
+}
+    
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+    }
+    
+.progress-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #AAA;
+}
+    
+.progress-speed {
+    display: flex;
+    align-items: center;
+}
+    
+.progress-speed::before {
+    content: '↑';
+    margin-right: 4px;
+    color: #4CAF50;
+    }
+    
+.progress-time::before {
+    content: '⏱️';
+    margin-right: 4px;
+}
+    
+.progress-files {
+    display: flex;
+    align-items: center;
+}
+    
+.progress-files::before {
+    content: '📄';
+    margin-right: 4px;
+}
+    
+.progress-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #AAA;
+    cursor: pointer;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+    
+.progress-close:hover {
+    color: #FFF;
+}

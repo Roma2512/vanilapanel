@@ -1,0 +1,134 @@
+{% extends "index.html" %}
+{% block title %}vanilaworld - Терминал{% endblock %}
+{% block head %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="/static/styles/terminal.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
+
+            // Обработка подключения
+            socket.on('connect', () => {
+                socket.emit("init", '{{ id }}');
+            });
+            function add_message(text){
+                const terminal = document.getElementById('terminal');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'terminal-command';
+                messageDiv.textContent = text;
+                terminal.appendChild(messageDiv);
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+            // Обработка сообщений от сервера
+            socket.on('console', (console) => {
+                const terminal = console.split("\n");
+
+                for(var message in terminal){
+                    add_message(terminal[message])
+                }
+            });
+
+            // Обработка сообщений от сервера
+            socket.on('message', (msg) => {
+                console.log(msg);
+                add_message(msg);
+            });
+
+            socket.on('clear', () => {
+                const terminal = document.getElementById('terminal');
+                terminal.innerHTML = '';
+            });
+
+            // Обработка информации о сервере
+            socket.on('info', (data) => {
+                document.getElementById("cpu").textContent = `${data.cpu}`;
+                document.getElementById("ram").textContent = `${data.ram}`;
+                document.getElementById("mem").textContent = `${data.mem}`;
+                if (data.status){
+                    document.getElementById("switch_btn").textContent = "Стоп";
+                    document.getElementById("status").textContent = "Запущен";
+                } else {
+                    document.getElementById("switch_btn").textContent = "Старт";
+                    document.getElementById("status").textContent = "Выключен";
+                }
+            });
+
+            // Отправка сообщения на сервер
+            document.getElementById('send').addEventListener('click', sendCommand);
+
+            document.getElementById('switch_btn').addEventListener('click', () => {
+                socket.emit('switch', '{{ id }}');
+            });
+
+            document.getElementById('kill_btn').addEventListener('click', () => {
+                socket.emit('kill_proc', '{{ id }}');
+            });
+
+            // Обработка нажатия Enter в поле ввода
+            document.getElementById('message').addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') {
+                    sendCommand();
+                }
+            });
+
+            function sendCommand() {
+                const message = document.getElementById('message').value;
+                if(message.trim()) {
+                    socket.emit('message', {data: message, id: '{{ id }}'});
+                    document.getElementById('message').value = '';
+                }
+            }
+        });
+    </script>
+{% endblock %}
+{% block menu %}
+    <div class="leftmenu">
+        <a>Терминал</a>
+        <a href="/explorer/{{ id }}">Файлы</a>
+    </div>
+{% endblock %}
+{% block body %}
+    <div class="block" style="height: 750px">
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <h1>Серверная консоль</h1>
+                <div class="header-buttons">
+                    <button id="switch_btn" class="button">Старт</button>
+                    <button id="kill_btn" class="button">Убить</button>
+                </div>
+            </div>
+
+            <div class="server-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Адрес</div>
+                    <div class="stat-value" id="ip">{{ config.ip }}:{{ server.port }}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">ОЗУ</div>
+                    <div class="stat-value" id="ram">?</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">ЦП</div>
+                    <div class="stat-value" id="cpu">?</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">ПЗУ</div>
+                    <div class="stat-value" id="mem">?</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Статус</div>
+                    <div class="stat-value" id="status">?</div>
+                </div>
+            </div>
+
+            <div id="terminal" class="block"></div>
+
+            <div class="terminal-input">
+                <div class="input-row" style="width: -webkit-fill-available;">
+                    <input type="text" id="message" class="entry" placeholder="Введите команду..." style="flex-grow: 1;">
+                    <button id="send" class="button">Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

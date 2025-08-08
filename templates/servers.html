@@ -1,0 +1,17 @@
+{% extends "index.html" %}
+{% block title %}vanilaworld - Терминал{% endblock %}
+{% block head %}
+{% endblock %}
+{% block menu %}
+    <a>Добавить</a>
+{% endblock %}
+{% block body %}
+<h1>Сервера</h1>
+    {% for server in servers %}
+        <div class="block" style="display: flex">
+            <p style="flex: 1">{{ server.name }}</p>
+            <p style="flex: 1">{{ config.ip }}:{{ server.port }}</p>
+            <a class="button" href="/terminal/{{ server.id }}">Перейти</a>
+        </div>
+    {% endfor %}
+{% endblock %}
