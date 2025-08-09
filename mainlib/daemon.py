@@ -1,96 +1,90 @@
+import docker
 import os
-import subprocess
-import psutil
-import resource
+import socket
+import select
+import time
+from threading import Thread
 
-processes = {"1": {}}
-containers = {"1": {"running": False, "console": ""}}
-#with open("servers.json", 'r') as f:
-#    servers = f.read()
-servers = {"1": {"name": "test", "egg": "python", "port": 25565, "mem": 4096, "cpu": 400, "cores": [0,1,2,3]}}
+client = docker.from_env()
+socket_connections = {}
+logs = {}
 
-def start_process(id: str, command: str):
-    print(id, command)
-    #try:
-    if 2 > 1:
-        processes[id] = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
-            shell=True,
-            cwd=f"servers/{id}/",
-        )
-        return {"code": True, "message": f"{id} - {command}"}
-    #except Exception as e:
-    #    return {"code": False, "message": "Ошибка запуска процесса"}
+def run_server(id: str):
+    # Исправлена опечатка в client.containers.run()
+    container = client.containers.run(
+        "ubuntu",
+        name=f"vanilapanel_{id}",
+        working_dir="/server",
+        volumes={os.path.abspath("../servers/1"): {"bind": "/server", "mode": "rw"}},
+        tty=True,
+        stdin_open=True,
+        detach=True,
+        ports={'25565/tcp': 25565},
+        mem_limit="1000M",
+        cpu_quota=50000,
+        command="/bin/bash"  # Запускаем bash
+    )
+    
+    # Получаем сырой сокет от Docker
+    sock = container.attach_socket(params={
+        'stdin': 1,
+        'stdout': 1,
+        'stderr': 1,
+        'stream': 1
+    })
+    
+    # Конвертируем SocketIO в обычный сокет
+    fd = sock.fileno()
+    new_sock = socket.fromfd(fd, socket.AF_UNIX, socket.SOCK_STREAM)
+    
+    socket_connections[id] = {
+        'socket': new_sock,
+        'container': container,
+        'buffer': b''
+    }
+    
+    return container
 
-
-def set_limits(id: str):
-    server = servers["id"]
+def send_command(id: str, command: str):
+    if id not in socket_connections:
+        raise ValueError(f"No active connection for container {id}")
+    
+    sock = socket_connections[id]['socket']
     try:
-        if server["mem"] is not None and hasattr(resource, 'RLIMIT_RSS'):
-            ram_bytes = int(server["mem"] * 1024 * 1024)
-            resource.setrlimit(resource.RLIMIT_RSS, (ram_bytes, ram_bytes))
+        sock.sendall((command + "\n").encode('utf-8'))
+    except (ConnectionResetError, BrokenPipeError, socket.error):
+        print(f"Connection to container {id} lost")
+        if id in socket_connections:
+            socket_connections[id]['socket'].close()
+            del socket_connections[id]
 
-        # Привязка к ядрам CPU
-        if server["cores"] is not None and hasattr(psutil.Process(), 'cpu_affinity'):
-            try:
-                cores = min(server["cores"], os.cpu_count() or 1)
-                psutil.Process().cpu_affinity(list(range(cores)))
-            except Exception as e:
-                print(f"Ошибка установки CPU affinity: {e}")
-
-    except Exception as e:
-        print(f"Ошибка установки лимитов ресурсов: {e}")
-
-def send_command(id: str, command: str) -> bool:
-    if id not in processes:
-        print(f"Процесс {id} не найден!")
-        return False
-
+def stop_server(id: str):
+    if id in socket_connections:
+        socket_connections[id]['socket'].close()
+        del socket_connections[id]
+    
     try:
-        proc = processes[id]
-        proc.stdin.write(command + "\n")
-        proc.stdin.flush()
-        return True
-    except Exception as e:
-        print(f"Ошибка отправки команды в процесс {id}: {e}")
-        return False
+        container = client.containers.get(f"vanilapanel_{id}")
+        container.stop()
+        container.remove()
+    except:
+        pass
 
-def stop_process(id: str) -> bool:
-    if id not in processes:
-        print(f"Процесс {id} не найден!")
-        return False
-
+def kill_server(id: str):
+    if id in socket_connections:
+        socket_connections[id]['socket'].close()
+        del socket_connections[id]
+    
     try:
-        proc = processes[id]
-        proc.stdin.close()  # Закрываем stdin, чтобы процесс мог завершиться
-
-        # Читаем вывод в реальном времени (если процесс завис, можно добавить timeout)
-        stdout, stderr = proc.communicate(timeout=10)
-
-        print(f"[Процесс {id}] Вывод:")
-        print(stdout.strip())
-        if stderr.strip():
-            print(f"[Процесс {id}] Ошибки:")
-            print(stderr.strip())
-
-        del processes[id]  # Удаляем процесс из словаря
-        return True
-    except subprocess.TimeoutExpired:
-        print(f"Процесс {id} не завершился вовремя, принудительно убиваю...")
-        proc.kill()
-        return False
-    except Exception as e:
-        print(f"Ошибка остановки процесса {id}: {e}")
-        return False
+        container = client.containers.get(f"vanilapanel_{id}")
+        container.kill()
+        container.remove()
+    except:
+        pass
 
 def is_running(id: str):
     try:
-        return processes[id].poll() == None
+        container = client.containers.get(f"vanilapanel_{id}")
+        return container.status == "running"
     except:
         return False

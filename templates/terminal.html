@@ -2,25 +2,36 @@
 {% block title %}vanilaworld - Терминал{% endblock %}
 {% block head %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
     <link rel="stylesheet" href="/static/styles/terminal.css">
     <script>
+
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io();
+            const term = new Terminal({
+                theme: {
+                    background: '#252525',  // Светло-серый
+                    foreground: '#AAAAAA',  // Темно-серый текст
+                    cursor: '#252525'       // Цвет курсора
+                }
+            });
+            const fitAddon = new FitAddon.FitAddon();
+            
+            term.loadAddon(fitAddon);
+            term.open(document.getElementById('terminal'));
+            fitAddon.fit();
 
             // Обработка подключения
             socket.on('connect', () => {
-                socket.emit("init", '{{ id }}');
+                socket.emit("term-client-history", '{{ id }}');
+                socket.emit("term-init", "{{ id }}");
             });
             function add_message(text){
-                const terminal = document.getElementById('terminal');
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'terminal-command';
-                messageDiv.textContent = text;
-                terminal.appendChild(messageDiv);
-                terminal.scrollTop = terminal.scrollHeight;
+                term.write(text)
             }
             // Обработка сообщений от сервера
-            socket.on('console', (console) => {
+            socket.on('term-server-history', (console) => {
                 const terminal = console.split("\n");
 
                 for(var message in terminal){
@@ -29,18 +40,15 @@
             });
 
             // Обработка сообщений от сервера
-            socket.on('message', (msg) => {
-                console.log(msg);
-                add_message(msg);
-            });
-
-            socket.on('clear', () => {
-                const terminal = document.getElementById('terminal');
-                terminal.innerHTML = '';
+            socket.on('term-server-msg', (data) => {
+                console.log(data);
+                if (data['id'] == "{{ id }}")
+                    add_message(data["message"]);
             });
 
             // Обработка информации о сервере
-            socket.on('info', (data) => {
+            socket.on('term-server-info', (data) => {
+                console.log(data);
                 document.getElementById("cpu").textContent = `${data.cpu}`;
                 document.getElementById("ram").textContent = `${data.ram}`;
                 document.getElementById("mem").textContent = `${data.mem}`;
@@ -57,11 +65,11 @@
             document.getElementById('send').addEventListener('click', sendCommand);
 
             document.getElementById('switch_btn').addEventListener('click', () => {
-                socket.emit('switch', '{{ id }}');
+                socket.emit('term-client-run', '{{ id }}');
             });
 
             document.getElementById('kill_btn').addEventListener('click', () => {
-                socket.emit('kill_proc', '{{ id }}');
+                socket.emit('term-client-kill', '{{ id }}');
             });
 
             // Обработка нажатия Enter в поле ввода
@@ -74,7 +82,7 @@
             function sendCommand() {
                 const message = document.getElementById('message').value;
                 if(message.trim()) {
-                    socket.emit('message', {data: message, id: '{{ id }}'});
+                    socket.emit('term-client-msg', {data: message, id: '{{ id }}'});
                     document.getElementById('message').value = '';
                 }
             }

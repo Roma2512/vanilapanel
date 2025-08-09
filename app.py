@@ -1,6 +1,8 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from pages import *
+from time import sleep
+from colorama import Back, Fore
 import psutil, random, base64
 
 app = Flask(__name__)
@@ -37,25 +39,40 @@ def downloadfile(fileid):
 @socketio.on('connect')
 def handle_connect():
     print('> Client connected!')
-    #emit("message", {"data"})
-@socketio.on('init')
-def handle_init(id):
+@socketio.on('term-init')
+def handle_term_init(id):
+    viewed_logs = -1
+    while True:
+        emit("term-server-info", get_info(id))
+        if is_running(id):
+            while len(logs[id]) > viewed_logs + 1:
+                viewed_logs += 1
+                emit("term-server-msg", {"id": id, "message": str(logs[id][viewed_logs])})
+        else:
+            viewed_logs = -1
+            emit("term-server-info", get_info(id))
+        socketio.sleep(0)
+@socketio.on('term-client-history')
+def handle_history(id):
     global containers
-    console = containers[id]["console"]
-    emit("clear")
-    emit("console", console)
-    send_info(id)
+    #console = containers[id]["console"]
+    #emit("term-server-history", console)
 
-@socketio.on('message')
+@socketio.on('term-client-info')
+def handle_info(id):
+    global containers
+    #console = containers[id]["console"]
+    emit("term-server-info", get_info(id))
+
+@socketio.on('term-client-msg')
 def handle_message(data):
     command = data['data']
-    containers[data['id']]["console"] += f"{command}\n"
     send_command(data['id'], command)
-    socketio.emit("message", command)
+    #socketio.emit("term-server-msg", {"id": data["id"], "message": f"$ {command}"})
 
-@socketio.on('switch')
-def handle_switch(id):
-    if not containers[id]["running"]:
+@socketio.on('term-client-run')
+def handle_run_server(id):
+    if not is_running(id):
         #path = f"servers/{id}/server.properties"
         #with open("servers.json") as f:
         #    server = loads(f.read())[id]
@@ -68,17 +85,41 @@ def handle_switch(id):
         #else:
         #    with open(path, "w") as f:
         #        f.write(f"server-port={server['port']}")
-        socketio.emit("message", "Запуск процесса")
-        start_process(id, start_command["python"])
-        Thread(target=lambda: logger(id), daemon=True).run()
+        socketio.emit("term-server-msg", {"id": id, "message": f"{Fore.GREEN}Включение процесса {id}..."})
+        run_server(id)
+        Thread(target=terminal_logger, args=[id]).start()
     else:
-         send_command(id, "stop")
-@socketio.on('kill_proc')
+        send_command(id, "stop")
+@socketio.on('term-client-kill')
 def handle_kill(id):
-    if containers[id]["running"]:
-        processes[id].terminate()
-        processes[id].kill()
-def send_info(id):
+    socketio.emit("term-server-msg", {"id": id, "message": f"{Fore.RED}Экстренное выключение процесса {id}..."})
+    kill_server(id)
+def terminal_logger(id: str):
+    conn = socket_connections.get(id)
+    if not conn:
+        return
+    
+    sock = conn['socket']
+    logs[id] = []
+    while is_running(id):
+        try:
+            ready, _, _ = select.select([sock], [], [], 0.1)
+            if ready:
+                data = sock.recv(4096)
+                if data:
+                    conn['buffer'] += data
+                    msg = data.decode('utf-8', errors='replace')
+                    logs[id].append(msg)
+                    print(msg)
+                else:
+                    break
+        except (ConnectionResetError, BrokenPipeError, socket.error):
+            break
+    
+    sock.close()
+    if id in socket_connections:
+        del socket_connections[id]
+def get_info(id):
     memory = psutil.virtual_memory()
     cpu = psutil.cpu_percent(interval=1, percpu=True)
     globalcpu, cores = 0, 0
@@ -87,21 +128,7 @@ def send_info(id):
         cores += 100
     mem = f_size(psutil.disk_usage(f'servers/{id}/').used)
     totalmem = f_size(psutil.disk_usage(f'servers/{id}/').total)
-    socketio.emit("info", {"cpu": f"{round(globalcpu, 10)}%/{cores}%", "ram": f"{f_size(memory.used)}/{f_size(memory.total)}", "mem": f"{mem}/{totalmem}", "status": containers[id]["running"]})
-def logger(id):
-    global containers
-    socketio.emit("message", "starting logger...")
-    proc = processes[id]
-    containers[id] = {"running": True, "console": ""}
-    while is_running(id):
-        line = proc.stdout.readline()
-        print("anal")
-        if line != "":
-            containers[id]["console"] += f"{line}"
-            socketio.emit("message", line)
-            print(line)
-        sleep(0.001)
-    containers[id]["running"] = False
+    return {"cpu": f"{round(globalcpu, 10)}%/{cores}%", "ram": f"{f_size(memory.used)}/{f_size(memory.total)}", "mem": f"{mem}/{totalmem}", "status": is_running(id)}
 
 #ОПАСНАЯ ЗОНА ---------------------------
 @socketio.on('exp-client-tools')

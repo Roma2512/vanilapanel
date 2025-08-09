@@ -1,0 +1,192 @@
+/* Minimalist CSS with orange (#FF8000) and dark gray (#323232) theme */
+:root {
+  --primary: #FF8000;
+  --primary-rgb: 255, 128, 0;
+  --bg-dark: #252525;
+  --bg-darker: #323232;
+  --text-light: #EEE;
+  --text-muted: #AAA;
+  --border: rgba(255, 255, 255, 0.03);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text-light);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--text-light);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover {
+  color: var(--primary);
+}
+
+/* Layout components */
+.menu {
+  background: var(--bg-darker);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+}
+
+.leftmenu, .rightmenu {
+  display: flex;
+  gap: 16px;
+}
+
+/* UI Components */
+.block {
+  background: var(--bg-darker);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px;
+}
+
+.button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.button:hover {
+  background: rgba(var(--primary-rgb), 0.8);
+}
+
+.entry, .search, .selectbox {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-light);
+  padding: 8px 12px;
+  width: 100%;
+  transition: border 0.2s;
+  outline: none;
+}
+.entry:hover, .search:hover, .selectbox:hover {
+  border-color: var(--primary);
+}
+.entry::placeholder, .search::placeholder {
+  color: var(--text-muted);
+}
+
+/* File input */
+.file-input-wrapper {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  width: 100%;
+}
+.file-input-wrapper input[type="file"] {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.file-input-custom {
+  background: var(--bg-darker);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-light);
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.file-input-wrapper:hover .file-input-custom {
+  border-color: var(--primary);
+}
+
+/* Radio and Checkbox */
+.radio, .checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.radio input, .checkbox input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  background: var(--bg-darker);
+  cursor: pointer;
+  position: relative;
+}
+.radio input {
+  border-radius: 50%;
+}
+.checkbox input {
+  border-radius: 8px;
+}
+.radio input:checked::before, .checkbox input:checked::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--primary);
+}
+.radio input:checked::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.checkbox input:checked::before {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 16px; }
+
+/* Hide scrollbar */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .menu {
+    padding: 8px 12px;
+  }
+  .leftmenu, .rightmenu {
+    gap: 8px;
+  }
+  .block {
+    padding: 12px;
+    margin: 4px;
+  }
+}
