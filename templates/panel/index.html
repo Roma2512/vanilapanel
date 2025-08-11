@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<title>{% block title %}{% endblock %}</title>
+		<link rel="stylesheet" href="/static/style.css">
+        <link rel="icon" href="/static/images/logo64.webp">
+        <style>
+			.sidebar {
+			  position: fixed;
+			  top: 0;
+			  left: -300px;
+			  width: 300px;
+			  height: 100vh;
+			  background: var(--bg-darker);
+			  border-right: 1px solid var(--border);
+			  z-index: 1000;
+			  transition: left 0.3s ease;
+			}
+
+			.sidebar-content {
+			  padding: 10px;
+			  height: 100%;
+			  overflow-y: auto;
+			}
+
+			.sidebar-overlay {
+			  position: fixed;
+			  top: 0;
+			  left: 0;
+			  right: 0;
+			  bottom: 0;
+			  background: rgba(0, 0, 0, 0.1);
+			  backdrop-filter: blur(10px);
+			  z-index: 999;
+			  opacity: 0;
+			  visibility: hidden;
+			  transition: opacity 0.3s ease, visibility 0.3s ease;
+			}
+
+			.sidebar-open .sidebar {
+			  left: 0;
+			}
+
+			.sidebar-open .sidebar-overlay {
+			  opacity: 1;
+			  visibility: visible;
+			}
+
+			/* Adjust top menu when sidebar is present */
+			body:not(.sidebar-open) .menu {
+			  left: 0;
+			}
+
+			/* Responsive adjustments */
+			@media (max-width: 768px) {
+			  .sidebar {
+			    width: 250px;
+			    left: -250px;
+			  }
+			}
+        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+		{% block head %}{% endblock %}
+	</head>
+	<body style="{% block style %}{% endblock %}">
+
+		<!-- Sidebar menu -->
+		<div class="sidebar">
+			<div class="sidebar-content">
+				{% block sidebar %}{% endblock %}
+			</div>
+		</div>
+
+		<!-- Overlay for sidebar -->
+		<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+		{% if not menu %}
+			<div class="menu">
+				<div class="leftmenu">
+					<div onclick="toggleSidebar()">☰</div>
+					{% block menu %}{% endblock %}
+				</div>
+				<div class="rightmenu">
+				</div>
+			</div>
+		{% endif %}
+		<p style="margin: 60px;"></p>
+		{% block body %}{% endblock %}
+
+		<script>
+			function toggleSidebar() {
+				document.body.classList.toggle('sidebar-open');
+			}
+		</script>
+	</body>
+</html>

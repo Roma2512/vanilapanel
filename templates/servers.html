@@ -1,17 +1,58 @@
 {% extends "index.html" %}
-{% block title %}vanilaworld - Терминал{% endblock %}
+{% block title %}vanilaworld - Серверы{% endblock %}
 {% block head %}
+    <style>
+        .server-grid {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr;
+            gap: 12px;
+            align-items: center;
+            padding: 0 16px;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: var(--text-muted);
+        }
+        
+        .server-item {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .server-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+    </style>
 {% endblock %}
 {% block menu %}
-    <a>Добавить</a>
+    <a href="/panel/servers">Добавить сервер</a>
 {% endblock %}
 {% block body %}
-<h1>Сервера</h1>
-    {% for server in servers %}
-        <div class="block" style="display: flex">
-            <p style="flex: 1">{{ server.name }}</p>
-            <p style="flex: 1">{{ config.ip }}:{{ server.port }}</p>
-            <a class="button" href="/terminal/{{ server.id }}">Перейти</a>
+    <div class="block">
+        <h1 style="margin-bottom: 20px;">Мои сервера</h1>
+        
+        <div class="server-grid">
+            <span>Имя сервера</span>
+            <span>Адрес</span>
+            <span style="text-align: right;">Действия</span>
         </div>
-    {% endfor %}
+        
+        {% for server in servers %}
+        <div class="block server-item">
+            <span>{{ server.name }}</span>
+            <span>{{ config.ip }}:{{ server.port }}</span>
+            <div class="server-actions">
+                <a class="button small" href="/terminal/{{ server.id }}">Посмотреть</a>
+            </div>
+        </div>
+        {% else %}
+        <div class="block text-center" style="padding: 24px;">
+            <p>Нет добавленных серверов</p>
+            <a href="/panel/add_server" class="button mt-2">Добавить первый сервер</a>
+        </div>
+        {% endfor %}
+    </div>
 {% endblock %}

@@ -1,0 +1,297 @@
+{% extends "panel/index.html" %}
+{% block head %}
+    <style>
+        .button {
+            width: -webkit-fill-available;
+            display: block;
+            margin: 3px;
+        }
+        .server-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            padding: 16px;
+        }
+        .server-card {
+            background: var(--bg-darker);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .server-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .server-name {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .server-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .detail-label {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        .detail-value {
+            font-size: 14px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .edit-btn {
+            background: #4CAF50;
+        }
+        .delete-btn {
+            background: #F44336;
+        }
+        .add-server-btn {
+            margin: 16px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: var(--bg-darker);
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 24px;
+        }
+    </style>
+{% endblock %}
+{% block menu %}
+    <a href="/">Назад</a>
+{% endblock %}
+{% block sidebar %}
+    <a href="/panel/settings" class="button">Настройки</a>
+    <a class="button" style="background-color: gray">Сервера</a>
+{% endblock %}
+{% block body %}
+    <div class="add-server-btn">
+        <button class="button" onclick="openModal()">Добавить сервер</button>
+    </div>
+    
+    <div class="server-list" id="serverList">
+        <!-- Сервера будут загружены здесь -->
+    </div>
+
+    <!-- Модальное окно для добавления/редактирования -->
+    <div class="modal" id="serverModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Добавить сервер</h2>
+            <div class="form-group">
+                <label class="detail-label">ID сервера</label>
+                <input type="text" id="serverId" class="entry" placeholder="1">
+            </div>
+            <div class="form-group">
+                <label class="detail-label">Название</label>
+                <input type="text" id="serverName" class="entry" placeholder="test">
+            </div>
+            <div class="form-group">
+                <label class="detail-label">Egg</label>
+                <input type="text" id="serverEgg" class="entry" placeholder="minecraft">
+            </div>
+            <div class="form-group">
+                <label class="detail-label">Порт</label>
+                <input type="number" id="serverPort" class="entry" placeholder="25565">
+            </div>
+            <div class="form-group">
+                <label class="detail-label">Память (MB)</label>
+                <input type="number" id="serverMem" class="entry" placeholder="4096">
+            </div>
+            <div class="form-group">
+                <label class="detail-label">CPU (%)</label>
+                <input type="number" id="serverCpu" class="entry" placeholder="400">
+            </div>
+            <div class="form-group"><!-- ЭТО УБРАТЬ -->
+                <label class="detail-label">Ядра CPU (через запятую)</label><!-- ЭТО УБРАТЬ -->
+                <input type="text" id="serverCores" class="entry" placeholder="0,1,2,3"><!-- ЭТО УБРАТЬ -->
+            </div><!-- ЭТО УБРАТЬ -->
+            <div class="form-actions">
+                <button class="button" onclick="closeModal()">Отмена</button>
+                <button class="button" id="saveServerBtn" onclick="saveServer()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+//-----------------------------------------------------------------------------------------------------------------
+        let servers = {					// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+            "1": {						// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "name": "test",			// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "egg": "minecraft",		// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "port": 25565,			// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "mem": 4096,			// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "cpu": 400,				// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+                "cores": [0,1,2,3]		// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+            }							// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+        };								// ЭТО НУЖНО ИЗМЕНИТЬ  <---------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+        // Загрузка серверов при открытии страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServers();
+        });
+
+        // Функция для загрузки списка серверов
+        function loadServers() {
+            const serverList = document.getElementById('serverList');
+            serverList.innerHTML = '';
+            
+            for (const [id, server] of Object.entries(servers)) {
+                const serverCard = document.createElement('div');
+                serverCard.className = 'server-card';
+                //ЭТО ИЗМЕНИТЬ ------------------
+                serverCard.innerHTML = `
+                    <div class="server-header">
+                        <div class="server-name">${server.name}</div>
+                        <div>ID: ${id}</div>
+                    </div>
+                    <div class="server-details">
+                        <div>
+                            <div class="detail-label">Egg</div>
+                            <div class="detail-value">${server.egg}</div>
+                        </div>
+                        <div>
+                            <div class="detail-label">Порт</div>
+                            <div class="detail-value">${server.port}</div>
+                        </div>
+                        <div>
+                            <div class="detail-label">Память</div>
+                            <div class="detail-value">${server.mem} MB</div>
+                        </div>
+                        <div>
+                            <div class="detail-label">CPU</div>
+                            <div class="detail-value">${server.cpu}%</div>
+                        </div>
+                        <div>
+                            <div class="detail-label">Ядра CPU</div>
+                            <div class="detail-value">${server.cores.join(', ')}</div>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="button edit-btn" onclick="editServer('${id}')">Редактировать</button>
+                        <button class="button delete-btn" onclick="deleteServer('${id}')">Удалить</button>
+                    </div>
+                `;//ЭТО ИЗМЕНИТЬ <------------------
+                
+                serverList.appendChild(serverCard);
+            }
+        }
+
+        // Открытие модального окна
+        function openModal(serverId = null) {
+            const modal = document.getElementById('serverModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const saveBtn = document.getElementById('saveServerBtn');
+            
+            if (serverId) {
+                // Редактирование существующего сервера
+                modalTitle.textContent = 'Редактировать сервер';
+                saveBtn.textContent = 'Обновить';
+                
+                const server = servers[serverId];
+                document.getElementById('serverId').value = serverId;
+                document.getElementById('serverName').value = server.name;
+                document.getElementById('serverEgg').value = server.egg;
+                document.getElementById('serverPort').value = server.port;
+                document.getElementById('serverMem').value = server.mem;
+                document.getElementById('serverCpu').value = server.cpu;
+                document.getElementById('serverCores').value = server.cores.join(',');//ЭТО УБРАТЬ <----------------------
+            } else {
+                // Добавление нового сервера
+                modalTitle.textContent = 'Добавить сервер';
+                saveBtn.textContent = 'Сохранить';
+                
+                // Очищаем поля
+                document.getElementById('serverId').value = '';
+                document.getElementById('serverName').value = '';
+                document.getElementById('serverEgg').value = '';
+                document.getElementById('serverPort').value = '';
+                document.getElementById('serverMem').value = '';
+                document.getElementById('serverCpu').value = '';
+                document.getElementById('serverCores').value = '';//ЭТО УБРАТЬ <----------------------
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        // Закрытие модального окна
+        function closeModal() {
+            document.getElementById('serverModal').style.display = 'none';
+        }
+
+        // Сохранение сервера
+        function saveServer() {
+            const id = document.getElementById('serverId').value;
+            const name = document.getElementById('serverName').value;
+            const egg = document.getElementById('serverEgg').value;
+            const port = parseInt(document.getElementById('serverPort').value);
+            const mem = parseInt(document.getElementById('serverMem').value);
+            const cpu = parseInt(document.getElementById('serverCpu').value);
+            const cores = document.getElementById('serverCores').value.split(',').map(Number);//ЭТО УБРАТЬ 
+            
+            if (!id || !name || !egg || isNaN(port) || isNaN(mem) || isNaN(cpu) || cores.length === 0) {
+                alert('Пожалуйста, заполните все поля корректно!');
+                return;
+            }
+            
+            // Сохраняем сервер
+            servers[id] = {
+                name,
+                egg,
+                port,
+                mem,
+                cpu,
+                cores//ЭТО УБРАТЬ <----------------------
+            };
+            
+            // Обновляем список серверов
+            loadServers();
+            closeModal();
+        }
+
+        // Редактирование сервера
+        function editServer(id) {
+            openModal(id);
+        }
+
+        // Удаление сервера
+        function deleteServer(id) {
+            if (confirm(`Вы уверены, что хотите удалить сервер ${servers[id].name} (ID: ${id})?`)) {
+                delete servers[id];
+                loadServers();
+            }
+        }
+    </script>
+{% endblock %}

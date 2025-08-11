@@ -35,3 +35,13 @@ def get_files(path):
     files.sort(key=lambda x: (not x['isdir'], x['name'].lower()))
 
     return files
+
+def get_folder_size(path, follow_symlinks=False):
+    total_size = 0
+    for dirpath, _, filenames in os.walk(path):
+        for filename in filenames:
+            fp = os.path.join(dirpath, filename)
+            if not follow_symlinks and os.path.islink(fp):
+                continue
+            total_size += os.path.getsize(fp)
+    return total_size

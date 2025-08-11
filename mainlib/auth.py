@@ -11,3 +11,5 @@ def loginuser(username, password):
         token = str(uuid.uuid4())
         Tokens.append(token)
         return {"code": True, "token": token}
+    else:
+        return {"code": False, "message": "Неверный логин или пароль"}

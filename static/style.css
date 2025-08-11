@@ -30,7 +30,7 @@ a {
   transition: color 0.2s;
 }
 a:hover {
-  color: var(--primary);
+  color: var(--text-muted);
 }
 
 /* Layout components */

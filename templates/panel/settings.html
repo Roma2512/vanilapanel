@@ -1,0 +1,19 @@
+{% extends "panel/index.html" %}
+{% block head %}
+{% endblock %}
+{% block menu %}
+	<a href="/">Назад</a>
+	<style>
+		.button{
+			width: -webkit-fill-available;
+			display: block;
+			margin: 3px;
+		}
+	</style>
+{% endblock %}
+{% block sidebar %}
+	<a class="button disable" style="background-color: gray">Настройки</a>
+	<a href="/panel/servers" class="button">Сервера</a>
+{% endblock %}
+{% block body %}
+{% endblock %}

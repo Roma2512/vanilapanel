@@ -17,41 +17,73 @@
                 }
             });
             const fitAddon = new FitAddon.FitAddon();
+            const inputField = document.getElementById('message');
+            let connId = "";
+            let commandHistory = [];
+            let historyIndex = -1; 
             
             term.loadAddon(fitAddon);
             term.open(document.getElementById('terminal'));
             fitAddon.fit();
+
+            // Обработчик нажатия клавиш
+            inputField.addEventListener('keydown', function(event) {
+                if (event.key === 'ArrowUp') {
+                    // Стрелка вверх - предыдущая команда
+                    event.preventDefault();
+                    if (commandHistory.length > 0) {
+                        if (historyIndex < commandHistory.length - 1) {
+                            historyIndex++;
+                            inputField.value = commandHistory[commandHistory.length - 1 - historyIndex];
+                        }
+                    }
+                } else if (event.key === 'ArrowDown') {
+                    // Стрелка вниз - следующая команда
+                    event.preventDefault();
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                        inputField.value = commandHistory[commandHistory.length - 1 - historyIndex];
+                    } else if (historyIndex === 0) {
+                        historyIndex = -1;
+                        inputField.value = ''; // Сброс, если достигли начала
+                    }
+                }
+            });
 
             // Обработка подключения
             socket.on('connect', () => {
                 socket.emit("term-client-history", '{{ id }}');
                 socket.emit("term-init", "{{ id }}");
             });
+            socket.on('term-init', (data) => {
+                connId = data;
+            });
+            socket.on('check-connection', () => {
+                socket.emit("check-connection", connId);
+            });  
+
             function add_message(text){
                 term.write(text)
             }
             // Обработка сообщений от сервера
             socket.on('term-server-history', (console) => {
-                const terminal = console.split("\n");
-
-                for(var message in terminal){
-                    add_message(terminal[message])
+                for(var message in console){
+                    add_message(console[message])
                 }
             });
 
             // Обработка сообщений от сервера
             socket.on('term-server-msg', (data) => {
-                console.log(data);
                 if (data['id'] == "{{ id }}")
                     add_message(data["message"]);
             });
 
             // Обработка информации о сервере
             socket.on('term-server-info', (data) => {
-                console.log(data);
                 document.getElementById("cpu").textContent = `${data.cpu}`;
                 document.getElementById("ram").textContent = `${data.ram}`;
                 document.getElementById("mem").textContent = `${data.mem}`;
+                document.getElementById("net").textContent = `${data.net.RX}/${data.net.TX}`;
                 if (data.status){
                     document.getElementById("switch_btn").textContent = "Стоп";
                     document.getElementById("status").textContent = "Запущен";
@@ -83,6 +115,11 @@
                 const message = document.getElementById('message').value;
                 if(message.trim()) {
                     socket.emit('term-client-msg', {data: message, id: '{{ id }}'});
+                    commandHistory.push(message);
+                    if (commandHistory.length > 50) {
+                        commandHistory.shift();
+                    }
+                    historyIndex = -1;
                     document.getElementById('message').value = '';
                 }
             }
@@ -91,6 +128,7 @@
 {% endblock %}
 {% block menu %}
     <div class="leftmenu">
+        <a href="/">Назад</a>
         <a>Терминал</a>
         <a href="/explorer/{{ id }}">Файлы</a>
     </div>
@@ -122,6 +160,10 @@
                 <div class="stat-item">
                     <div class="stat-label">ПЗУ</div>
                     <div class="stat-value" id="mem">?</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Интернет</div>
+                    <div class="stat-value" id="net"></div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Статус</div>

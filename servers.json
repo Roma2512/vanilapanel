@@ -1,1 +1,1 @@
-{"1": {"name": "dallan", "egg": "minecraft", "port": 25565, "mem": 4096, "cpu": 400, "cores": [0,1,2,3]}}
+{"1": {"name": "test", "egg": "minecraft", "port": 25565, "mem": 4096, "cpu": 400, "cores": [0,1,2,3]}}

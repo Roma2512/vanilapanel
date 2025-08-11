@@ -15,7 +15,7 @@ def run_server(id: str):
         "ubuntu",
         name=f"vanilapanel_{id}",
         working_dir="/server",
-        volumes={os.path.abspath("../servers/1"): {"bind": "/server", "mode": "rw"}},
+        volumes={os.path.abspath("servers/1"): {"bind": "/server", "mode": "rw"}},
         tty=True,
         stdin_open=True,
         detach=True,

@@ -3,15 +3,15 @@ from flask_socketio import SocketIO, emit
 from pages import *
 from time import sleep
 from colorama import Back, Fore
-import psutil, random, base64
+import psutil, random, base64, random
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+app.config['SECRET_KEY'] = 'secret!vp'
 socketio = SocketIO(app)
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+CONNECTS = {}
 
 start_command = {
-    "minecraft": "java -Xms4096M -Xmx4096M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -jar server.jar",
+    "minecraft": "java -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -jar server.jar",
     "python": "python3 app.py"
 }
 
@@ -24,10 +24,21 @@ def explorer(id):
     return explorerPage(request, id)
 @app.route('/editor/<id>', methods=['GET', 'POST'])
 def editor(id):
+    #if authsession(request.get.cookie)
     return editorPage(request, id)
 @app.route('/terminal/<id>')
 def terminal(id):
-    return terminalPage(request, id)
+    with open("servers.json", "r") as f:
+        servers = loads(f.read())
+    with open("config.json", "r") as f:
+        config = loads(f.read())
+    return render_template("terminal.html", id=id, config=config, server=servers[id])
+@app.route('/panel/<mode>', methods=['GET', 'POST'])
+def panel(mode):
+    return panelPage(request, mode)
+@app.route('/auth', methods=['GET', 'POST'])
+def auth():
+    return authPage(request)
 @app.route('/download/<fileid>')
 def downloadfile(fileid):
     global tempdata
@@ -39,24 +50,41 @@ def downloadfile(fileid):
 @socketio.on('connect')
 def handle_connect():
     print('> Client connected!')
+@socketio.on('check-connection')
+def handle_check_connection(connid):
+    if connid in CONNECTS:
+        CONNECTS[connid] = True
 @socketio.on('term-init')
 def handle_term_init(id):
-    viewed_logs = -1
-    while True:
+    try:
+        viewed_logs = len(logs[id])-1
+    except:
+        viewed_logs = -1
+    connid = f"{random.randint(0, 99999999)}"
+    CONNECTS[connid] = True
+    emit("term-init", connid)
+    while CONNECTS[connid]:
+        CONNECTS[connid] = False
+        emit("check-connection")
         emit("term-server-info", get_info(id))
         if is_running(id):
-            while len(logs[id]) > viewed_logs + 1:
-                viewed_logs += 1
-                emit("term-server-msg", {"id": id, "message": str(logs[id][viewed_logs])})
+            try:
+                while len(logs[id]) > viewed_logs + 1:
+                    viewed_logs += 1
+                    emit("term-server-msg", {"id": id, "message": str(logs[id][viewed_logs])})
+            except: pass
         else:
-            viewed_logs = -1
+            try:
+                viewed_logs = len(logs[id])-1
+            except: pass
             emit("term-server-info", get_info(id))
-        socketio.sleep(0)
+        socketio.sleep(1)
 @socketio.on('term-client-history')
 def handle_history(id):
     global containers
-    #console = containers[id]["console"]
-    #emit("term-server-history", console)
+    try:
+        emit("term-server-history", logs[id])
+    except: pass
 
 @socketio.on('term-client-info')
 def handle_info(id):
@@ -94,6 +122,7 @@ def handle_run_server(id):
 def handle_kill(id):
     socketio.emit("term-server-msg", {"id": id, "message": f"{Fore.RED}Экстренное выключение процесса {id}..."})
     kill_server(id)
+#Учёт журнала терминала
 def terminal_logger(id: str):
     conn = socket_connections.get(id)
     if not conn:
@@ -119,18 +148,39 @@ def terminal_logger(id: str):
     sock.close()
     if id in socket_connections:
         del socket_connections[id]
-def get_info(id):
-    memory = psutil.virtual_memory()
-    cpu = psutil.cpu_percent(interval=1, percpu=True)
-    globalcpu, cores = 0, 0
-    for core in cpu:
-        globalcpu += core
-        cores += 100
-    mem = f_size(psutil.disk_usage(f'servers/{id}/').used)
-    totalmem = f_size(psutil.disk_usage(f'servers/{id}/').total)
-    return {"cpu": f"{round(globalcpu, 10)}%/{cores}%", "ram": f"{f_size(memory.used)}/{f_size(memory.total)}", "mem": f"{mem}/{totalmem}", "status": is_running(id)}
 
-#ОПАСНАЯ ЗОНА ---------------------------
+def calc_cp(stats):#ЭТО ПИСАЛ ДИПСИК
+    cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+    system_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+    online_cpus = stats['cpu_stats']['online_cpus']
+    
+    if system_delta > 0 and cpu_delta > 0:
+        return (cpu_delta / system_delta) * online_cpus * 100
+    return 0
+
+def get_info(id):#Ебаный код <------
+    result = {}
+    with open("servers.json", "r") as f:
+        server = loads(f.read())[id]
+    with open("config.json", "r") as f:
+        config = loads(f.read())
+    try:
+        container = client.containers.get(f'vanilapanel_{id}')
+        stats = container.stats(stream=False)
+        result["cpu"] = f"{round(calc_cp(stats), 2)}/{server['cpu']}%"
+        result["ram"] = f"{f_size(stats['memory_stats']['usage'])}/{f_size(stats['memory_stats']['limit'])}"
+        result["mem"] = f"{f_size(get_folder_size('servers/'+id))}"
+        result["net"] = {
+            "RX": f_size(stats['networks'][config['net_driver']]['rx_bytes']), 
+            "TX": f_size(stats['networks'][config['net_driver']]['tx_bytes'])
+        }
+        result["status"] = is_running(id)
+    except:
+        result = {"cpu": "~", "ram": "~", "mem": "~", "net": {"RX": "~", "TX": "~"}, "status": is_running(id)}
+    return result
+
+#ОПАСНАЯ ЗОНА ----------------------------------------------------
+#Дальше кода нет!
 @socketio.on('exp-client-tools')
 def handle_files(data):
     if data["mode"] == "list":
@@ -214,7 +264,7 @@ def handle_files(data):
         case "archive":
             pass
 
-@socketio.on('exp-client-upload-chunk')
+@socketio.on('exp-client-upload-chunk')#Часть дипсика
 def handle_file_upload_chunk(data):
     try:
         base_path = f"servers/{data['id']}"
@@ -223,17 +273,14 @@ def handle_file_upload_chunk(data):
         else:
             save_path = f"{base_path}/{data['filename']}"
 
-        # Декодируем чанк данных
         file_data = data['data'].split(',')[1]
         file_content = base64.b64decode(file_data)
 
-        # Режим записи (первый чанк - 'wb', последующие - 'ab')
         mode = 'ab' if data['currentChunk'] > 0 else 'wb'
 
         with open(save_path, mode) as f:
             f.write(file_content)
 
-        # Отправляем прогресс
         emit("exp-server-upload-progress", {
             "filename": data['filename'],
             "currentChunk": data['currentChunk'],
@@ -241,15 +288,12 @@ def handle_file_upload_chunk(data):
             "success": True
         })
 
-        # Запрашиваем следующий чанк или завершаем загрузку
-        print(data['currentChunk'], data['totalChunks'])
         if data['currentChunk'] < data['totalChunks'] - 1:
             emit("exp-server-upload-next-chunk", {
                 "filename": data['filename'],
                 "success": True
             })
         else:
-            # Загрузка завершена
             path = data['path'] if data['path'] else ""
             socketio.emit("exp-server-refresh", path)
             emit("exp-server-upload", {
